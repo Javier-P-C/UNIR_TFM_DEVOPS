@@ -245,9 +245,17 @@ Un id no numérico en `equipment` o `muscle_group` responde `400`.
 
 Videos: los enlaces de YouTube (`watch`, `shorts`, `youtu.be`) y los de TikTok con formato completo (`tiktok.com/@usuario/video/<id>`) se incrustan en la página. Cualquier otro enlace se muestra como un botón "Ver video" que abre una pestaña nueva.
 
+## Infraestructura
+La carpeta terraform contiene la infraestructura como código necesaria para levanta la aplicación en un clúster de Kubernetes en Azure con dos ambientes (dev y prod) y una solución de recuperación en AWS. La zona DNS se encuentra en AWS Route 53.
+
+## Scripts
+Es una carpeta con scripts auxiliares del proyecto. 
+El script de inventario permite ver un listado de los recursos creados en AWS y Azure
+
 ## Mejoras futuras
 - Implementar una fecha de creacion y última actualización en las tablas de equipo y ejercicios
 - Hacer que los ejercicios tengan su nombre en inglés y en españo dentro de la base de datos
 - Se puede plantear la idea de filtrar los ejercicios por equipo en la sección de Ejercicios
 - Usar un proveedor externo de DNS que no dependa de AWS o Azure
 - Añadir workflow para apagar la base de datos
+
