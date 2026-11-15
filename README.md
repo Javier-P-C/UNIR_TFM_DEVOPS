@@ -252,6 +252,14 @@ La carpeta terraform contiene la infraestructura como código necesaria para lev
 Es una carpeta con scripts auxiliares del proyecto. 
 El script de inventario permite ver un listado de los recursos creados en AWS y Azure
 
+## Conexión nube - github
+### Entornos y variables en GitHub
+Se crearon dos entornos en GitHub Actions, dev y prod. A partir de las salidas de la capa base se crearon variables de repositorio, que contienen identificadores y no secretos:
+• Azure: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID y ACR_SERVIDOR.
+• AWS: AWS_ROLE_ARN, AWS_REGION, ECR_URL_BACKEND y ECR_URL_FRONTEND.
+
+La autenticación de GitHub Actions frente a Azure y AWS se configuró con OIDC, de modo que cada ejecución recibe un token temporal y no se guardan credenciales fijas en el repositorio. En Azure se creó una aplicación con una entidad de servicio y credenciales federadas para los entornos dev y prod y para los pull requests. En AWS se creó el proveedor OIDC de GitHub y un rol cuya política de confianza limita el acceso al repositorio y a esos mismos entornos.
+
 ## Mejoras futuras
 - Implementar una fecha de creacion y última actualización en las tablas de equipo y ejercicios
 - Hacer que los ejercicios tengan su nombre en inglés y en españo dentro de la base de datos

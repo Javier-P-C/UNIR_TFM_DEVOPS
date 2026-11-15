@@ -1,0 +1,82 @@
+name: Prueba de autenticación
+
+# La ejecución se autentica en Azure y en AWS con OIDC,
+# sin credenciales fijas guardadas en el repositorio.
+#
+# Requisitos previos (pasos 6 a 8 del runbook de arranque de la capa base en la carpeta de terraform, ):
+#   - Entornos de GitHub dev y prod.
+#   - Variables de repositorio: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AWS_ROLE_ARN y AWS_REGION.
+
+on:
+  workflow_dispatch:
+    inputs:
+      entorno:
+        description: Entorno de GitHub con el que se ejecuta la prueba
+        type: choice
+        options:
+          - dev
+          - prod
+        default: dev
+
+permissions:
+  contents: read
+  id-token: write   # necesario para solicitar el token OIDC
+
+jobs:
+  autenticacion:
+    name: Autenticación OIDC (${{ inputs.entorno }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ inputs.entorno }}
+    env:
+      ENTORNO: ${{ inputs.entorno }}
+    steps:
+      - name: Contexto de la ejecución
+        run: |
+          echo "Repositorio: ${GITHUB_REPOSITORY}"
+          echo "Entorno: ${ENTORNO}"
+          echo "Subject OIDC esperado: repo:${GITHUB_REPOSITORY}:environment:${ENTORNO}"
+
+      # ---- Azure ----
+      - name: Iniciar sesión en Azure (OIDC)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verificar identidad y acceso en Azure
+        run: |
+          az account show --query "{suscripcion:name, id:id, tenant:tenantId, identidad:user.name}" -o table
+          echo "Recursos del proyecto visibles para esta identidad:"
+          az resource list --tag proyecto=tfm-unir --query "[].{nombre:name, tipo:type}" -o table
+
+      # ---- AWS ----
+      - name: Iniciar sesión en AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: tfm-unir-prueba-${{ github.run_id }}
+
+      - name: Verificar identidad y acceso en AWS
+        run: |
+          aws sts get-caller-identity
+          echo "Repositorios ECR visibles para esta identidad:"
+          aws ecr describe-repositories --query "repositories[].repositoryUri" --output table
+
+      - name: Resumen
+        run: |
+          {
+            echo "### Prueba de autenticación"
+            echo "- Entorno: ${ENTORNO}"
+            echo "- Azure: sesión iniciada con OIDC"
+            echo "- AWS: sesión iniciada con OIDC"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Qué revisar si falla
+        if: failure()
+        run: |
+          echo "1. Los entornos de GitHub deben llamarse dev y prod, igual que entornos_github en Terraform."
+          echo "2. El subject del token debe coincidir con la credencial federada (Azure) y con la política de confianza del rol (AWS)."
+          echo "3. Las variables de repositorio deben existir y tener los valores de las salidas de la capa base."
