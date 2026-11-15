@@ -1,0 +1,7 @@
+suscripcion_id = "00000000-0000-0000-0000-000000000000"
+github_repo    = "OWNER/REPO"
+cuenta_estado  = "REEMPLAZAR"
+host_por_entorno = {
+    dev  = "dev.tudominio.com"
+    prod = "app.tudominio.com"
+}

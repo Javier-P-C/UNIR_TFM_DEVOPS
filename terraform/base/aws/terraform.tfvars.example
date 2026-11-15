@@ -1,0 +1,4 @@
+github_repo      = "OWNER/REPO"
+bucket_respaldos = "tfm-unir-respaldos-CAMBIAR-SUFIJO"
+dominio = "midominio.com"
+host_prod = "app.tudominio.com"

@@ -249,3 +249,5 @@ Videos: los enlaces de YouTube (`watch`, `shorts`, `youtu.be`) y los de TikTok c
 - Implementar una fecha de creacion y última actualización en las tablas de equipo y ejercicios
 - Hacer que los ejercicios tengan su nombre en inglés y en españo dentro de la base de datos
 - Se puede plantear la idea de filtrar los ejercicios por equipo en la sección de Ejercicios
+- Usar un proveedor externo de DNS que no dependa de AWS o Azure
+- Añadir workflow para apagar la base de datos
