@@ -78,12 +78,15 @@ fi
 activos=0
 revisar() {
   local descripcion="$1"; shift
-  local salida
-  if ! salida=$("$@" 2>/dev/null); then
-    echo "  Aviso: no se pudo consultar ${descripcion}."
+  local salida errores
+  errores="$(mktemp)"
+  if ! salida=$("$@" 2>"$errores"); then
+    echo "  Aviso: no se pudo consultar ${descripcion}: $(grep -v '^$' "$errores" | head -n 2 | tr '\n' ' ' | cut -c1-300)"
     fallos=$((fallos + 1))
+    rm -f "$errores"
     return
   fi
+  rm -f "$errores"
   salida=$(printf '%s\n' "$salida" | grep -v -e '^$' -e '^None$' || true)
   [[ -z "$salida" ]] && return
   while IFS= read -r linea; do
@@ -101,7 +104,7 @@ revisar "azure balanceador" az network lb list --query "[].name" -o tsv
 revisar "azure ip publica" az network public-ip list --query "[].name" -o tsv
 revisar "azure nat" az network nat gateway list --query "[].name" -o tsv
 revisar "azure vnet" az network vnet list --query "[].name" -o tsv
-revisar "azure disco sin adjuntar" az disk list --query "[?managedBy==null].name" -o tsv
+revisar "azure disco" az resource list --resource-type Microsoft.Compute/disks --query "[].name" -o tsv
 revisar "aws eks" aws_lista eks list-clusters --query "clusters[]"
 revisar "aws rds" aws_lista rds describe-db-instances --query "DBInstances[].DBInstanceIdentifier"
 revisar "aws nat" aws_lista ec2 describe-nat-gateways --filter "Name=state,Values=pending,available" --query "NatGateways[].NatGatewayId"
