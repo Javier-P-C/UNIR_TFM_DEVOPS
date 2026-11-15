@@ -13,6 +13,7 @@ provider "azuread" {}
 data "azurerm_subscription" "actual" {}
 
 locals {
+  sujeto_repo = coalesce(var.github_repo_sujeto, var.github_repo)
   etiquetas = {
     proyecto  = var.proyecto
     entorno   = "base"
@@ -56,14 +57,14 @@ resource "azuread_application_federated_identity_credential" "entorno" {
   application_id = azuread_application.github.id
   display_name   = "github-${each.key}"
   issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:${var.github_repo}:environment:${each.key}"
+  subject        = "repo:${local.sujeto_repo}:environment:${each.key}"
   audiences      = ["api://AzureADTokenExchange"]
 }
 resource "azuread_application_federated_identity_credential" "pull_request" {
   application_id = azuread_application.github.id
   display_name   = "github-pull-request"
   issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:${var.github_repo}:pull_request"
+  subject        = "repo:${local.sujeto_repo}:pull_request"
   audiences      = ["api://AzureADTokenExchange"]
 }
 

@@ -9,6 +9,10 @@ provider "aws" {
   }
 }
 
+locals {
+  sujeto_repo = coalesce(var.github_repo_sujeto, var.github_repo)
+}
+
 data "aws_caller_identity" "actual" {}
 
 # ---- Registro de contenedores (ECR) ----
@@ -81,8 +85,8 @@ data "aws_iam_policy_document" "confianza" {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = concat(
-        [for e in var.entornos_github : "repo:${var.github_repo}:environment:${e}"],
-        ["repo:${var.github_repo}:pull_request"]
+        [for e in var.entornos_github : "repo:${local.sujeto_repo}:environment:${e}"],
+        ["repo:${local.sujeto_repo}:pull_request"]
       )
     }
   }

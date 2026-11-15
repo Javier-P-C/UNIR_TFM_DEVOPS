@@ -3,7 +3,7 @@ name: Prueba de autenticación
 # La ejecución se autentica en Azure y en AWS con OIDC,
 # sin credenciales fijas guardadas en el repositorio.
 #
-# Requisitos previos (pasos 6 a 8 del runbook de arranque de la capa base en la carpeta de terraform, ):
+# Requisitos previos (pasos 6 a 8 del runbook de arranque de la carpeta de terraform):
 #   - Entornos de GitHub dev y prod.
 #   - Variables de repositorio: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AWS_ROLE_ARN y AWS_REGION.
 
@@ -79,4 +79,5 @@ jobs:
         run: |
           echo "1. Los entornos de GitHub deben llamarse dev y prod, igual que entornos_github en Terraform."
           echo "2. El subject del token debe coincidir con la credencial federada (Azure) y con la política de confianza del rol (AWS)."
+          echo "   En repositorios creados desde el 15/07/2026 incluye los IDs: repo:propietario@ID/repositorio@ID:environment:<entorno>."
           echo "3. Las variables de repositorio deben existir y tener los valores de las salidas de la capa base."

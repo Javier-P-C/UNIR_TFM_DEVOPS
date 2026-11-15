@@ -52,3 +52,9 @@ variable "db_puerto" {
   type    = number
   default = 5432
 }
+
+variable "github_repo_sujeto" {
+  type        = string
+  default     = null
+  description = "Repositorio tal como aparece en el subject del token OIDC. Con subject inmutable: propietario@ID/repositorio@ID. Si es null se usa github_repo."
+}

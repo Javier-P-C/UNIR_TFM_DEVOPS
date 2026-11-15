@@ -59,3 +59,9 @@ variable "sku_app_configuration" {
   description = "free o standard"
   default     = "free"
 }
+
+variable "github_repo_sujeto" {
+  type        = string
+  default     = null
+  description = "Repositorio tal como aparece en el subject del token OIDC. Con subject inmutable: propietario@ID/repositorio@ID. Si es null se usa github_repo."
+}

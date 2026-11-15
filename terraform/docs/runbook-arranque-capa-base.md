@@ -20,6 +20,7 @@ Los presupuestos no se definen en Terraform, por lo que se crean a mano antes de
 ## 2. Preparar variables
 1. Copiar el repositorio y editar `bootstrap/variables.sh`: `GITHUB_REPO`, regiones, `AWS_BUCKET_ESTADO` (sufijo único) y anotar `AZ_STORAGE`.
 2. Verificación: `source bootstrap/variables.sh && env | grep -E "AZ_|AWS_"`.
+3. Definir el subject de GitHub: los repositorios creados después del 15 de julio de 2026 emiten el token OIDC con los identificadores del propietario y del repositorio (`propietario@ID/repositorio@ID`). Los IDs se obtienen con `gh api repos/<propietario>/<repositorio> --jq '.owner.id, .id'` y se guardan en `github_repo_sujeto` de ambos `terraform.tfvars`. Si el repositorio es anterior a esa fecha y no activó el subject inmutable, `github_repo_sujeto` se omite.
 
 ## 3. Estado remoto
 ### 3.1 Azure
@@ -78,6 +79,7 @@ Los valores salen de las salidas del apply en la capa base:
 2. Debe autenticarse en Azure con `azure/login` y en AWS con `aws-actions/configure-aws-credentials`, usando OIDC y sin credenciales fijas.
 3. Verificación: `az account show` y `aws sts get-caller-identity` aparecen en el log con las identidades del proyecto.
 4. Si falla la autenticación, revisar primero que los entornos de GitHub se llamen `dev` y `prod`, igual que en `entornos_github` de las variables de Terraform.
+5. Si el error es `AADSTS700213` (Azure) o `Not authorized to perform sts:AssumeRoleWithWebIdentity` (AWS), el subject del token no coincide con la credencial federada o con la política de confianza. El error de Azure muestra el subject recibido. Debe copiarse tal cual, sin el prefijo `repo:` ni el sufijo `:environment:...`, en `github_repo_sujeto`, y volver a aplicar ambas capas bases.
 
 ## 9. Comprobar etiquetas
 1. Todos los recursos creados llevan `proyecto`, `entorno=base` y `ejecucion=capa-base`.

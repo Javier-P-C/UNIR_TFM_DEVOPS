@@ -1,7 +1,7 @@
 venv/
 */creds.txt
 backend/env.local
-scripts/*.tsv
+*.tsv
 
 __pycache__/
 *.pyc
