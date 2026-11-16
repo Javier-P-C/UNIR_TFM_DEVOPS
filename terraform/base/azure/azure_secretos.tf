@@ -15,16 +15,13 @@
 data "azurerm_client_config" "actual" {}
 
 locals {
-  config_comun = {
-    DB_USER = var.db_usuario
-    DB_NAME = var.db_nombre
-    DB_PORT = tostring(var.db_puerto)
-  }
-
   # Una entrada por entorno y clave: "dev/ALLOWED_HOSTS" => { etiqueta, clave, valor }
   config_entorno = merge([
     for e, host in var.host_por_entorno : {
       for k, v in {
+        DB_USER              = var.db_usuario
+        DB_NAME              = var.db_nombre
+        DB_PORT              = tostring(var.db_puerto)
         ALLOWED_HOSTS        = host
         CORS_ALLOWED_ORIGINS = "https://${host}"
       } : "${e}/${k}" => { etiqueta = e, clave = k, valor = v }
@@ -134,14 +131,6 @@ resource "azurerm_key_vault_secret" "db_password" {
   depends_on   = [time_sleep.propagacion_roles]
 }
 
-# Claves comunes, sin etiqueta
-resource "azurerm_app_configuration_key" "comun" {
-  for_each               = local.config_comun
-  configuration_store_id = azurerm_app_configuration.principal.id
-  key                    = each.key
-  value                  = each.value
-  depends_on             = [time_sleep.propagacion_roles]
-}
 # Claves propias de cada entorno, con la etiqueta dev o prod
 resource "azurerm_app_configuration_key" "entorno" {
   for_each               = local.config_entorno

@@ -24,7 +24,6 @@ VALID_ENVS = ("local", "dev", "prod")
 # Credentials -> Key Vault
 SECRETS = [
     "DJANGO_SECRET_KEY",
-    "DB_USER",
     "DB_PASSWORD",
 ]
 
@@ -34,6 +33,7 @@ SETTINGS = [
     "DB_NAME",
     "DB_HOST",
     "DB_PORT",
+    "DB_USER",
     "CORS_ALLOWED_ORIGINS",
 ]
 

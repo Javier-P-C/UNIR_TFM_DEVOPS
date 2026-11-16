@@ -57,11 +57,11 @@ En el trabajo se simula la caída de la nube de Azure, por lo que el DNS se aloj
 ## 6. Aplicar la capa base de Azure
 1. En `base/azure/`: copiar `backend.hcl.example` a `backend.hcl` (con el nombre real de la cuenta) y `terraform.tfvars.example` a `terraform.tfvars`. Definir `host_por_entorno` con el nombre de host de `dev` y de `prod`.
 2. `terraform init -backend-config=backend.hcl`
-3. `terraform plan -out=plan.tfplan` y revisar: ACR, aplicación y entidad de servicio, credenciales federadas, asignaciones de rol, un App Configuration único, y por cada entorno un Key Vault con dos secretos y dos claves de configuración con la etiqueta del entorno, además de tres claves comunes sin etiqueta.
+3. `terraform plan -out=plan.tfplan` y revisar: ACR, aplicación y entidad de servicio, credenciales federadas, asignaciones de rol, un App Configuration único, y por cada entorno un Key Vault con dos secretos y cinco claves de configuración con la etiqueta del entorno.
 4. `terraform apply plan.tfplan`
 5. Anotar las salidas: `github_client_id`, `tenant_id`, `suscripcion_id`, `acr_servidor`, `key_vault` y `app_configuration`. El apply incluye una espera de 60 segundos para que se propaguen los roles antes de escribir los secretos.
 6. Si el apply falla al crear la aplicación en Azure AD, el usuario necesita el rol `Application Administrator` (o equivalente) en el directorio.
-7. Verificación: `terraform plan` sin cambios; `az acr list -o table` muestra el registro; `az keyvault secret list --vault-name <nombre> -o table` lista `DJANGO-SECRET-KEY` y `DB-PASSWORD` de cada entorno; `az appconfig kv list --endpoint <endpoint> --auth-mode login --label '*' -o table` lista las tres claves comunes y las de cada etiqueta (`dev` y `prod`), sin `DB_HOST`.
+7. Verificación: `terraform plan` sin cambios; `az acr list -o table` muestra el registro; `az keyvault secret list --vault-name <nombre> -o table` lista `DJANGO-SECRET-KEY` y `DB-PASSWORD` de cada entorno; `az appconfig kv list --endpoint <endpoint> --auth-mode login --label '*' -o table` lista las cinco claves de cada etiqueta (`dev` y `prod`), sin `DB_HOST`.
 8. Si el apply falla con 403 al escribir un secreto, esperar unos minutos y repetir `terraform apply`. Si se destruye la capa base y se vuelve a crear con el mismo nombre, el Key Vault puede quedar en borrado temporal; el proveedor está configurado para recuperarlo o purgarlo.
 
 ## 7. Variables en GitHub (sin secretos)
