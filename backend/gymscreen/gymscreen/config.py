@@ -6,6 +6,10 @@ ENV=dev|prod   -> secrets from Azure Key Vault (KEY_VAULT_URL),
                   non-sensitive settings from Azure App Configuration
                   (APP_CONFIG_ENDPOINT, label = ENV)
 
+In every ENV, an environment variable named like a non-sensitive setting
+(e.g. ALLOWED_HOSTS, DB_HOST) overrides the loaded value. Secrets cannot
+be overridden.
+
 Any missing value or failing service raises at import time, so the
 container fails on startup instead of at request time.
 
@@ -66,11 +70,12 @@ def _load_azure():
     credential = DefaultAzureCredential()
     values = {}
 
-    # Key Vault 
+    # Key Vault: secret names only allow letters, digits and hyphens,
+    # so DJANGO_SECRET_KEY is stored as DJANGO-SECRET-KEY
     secret_client = SecretClient(vault_url=key_vault_url, credential=credential)
     for name in SECRETS:
         try:
-            values[name] = secret_client.get_secret(name).value
+            values[name] = secret_client.get_secret(name.replace("_", "-")).value
         except ResourceNotFoundError:
             pass  # reported as missing below
         except AzureError as e:
@@ -91,11 +96,29 @@ def _load_azure():
     return values
 
 
+def _apply_overrides(values):
+    """
+    An environment variable with the same name overrides a non-sensitive
+    setting (e.g. ALLOWED_HOSTS or DB_HOST set in the Kubernetes manifest).
+    Secrets are never overridden: they only come from env.local or Key Vault.
+    """
+    for name in SETTINGS:
+        override = os.getenv(name)
+        if override:
+            values[name] = override
+    return values
+
+
 def _load():
     if ENV not in VALID_ENVS:
         raise ImproperlyConfigured(f"ENV must be one of {VALID_ENVS}, got {ENV!r}")
 
-    values = _load_local() if ENV == "local" else _load_azure()
+    if ENV == "local":
+        values = _load_local()
+    else:
+        values = _load_azure()
+
+    values = _apply_overrides(values)  # for test purposes, e.g. DB_HOST=localhost
 
     missing = [name for name in SECRETS + SETTINGS if not values.get(name)]
     if missing:

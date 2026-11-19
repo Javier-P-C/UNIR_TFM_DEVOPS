@@ -45,7 +45,11 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # First: answers /healthz and /readyz before the ALLOWED_HOSTS check
+    'gymscreen.health.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    # Serves STATIC_ROOT (admin CSS/JS) when DEBUG is False
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -141,7 +145,37 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# collectstatic copies the admin's CSS/JS here when the image is built;
+# WhiteNoise serves them from this folder when DEBUG is False (dev/prod)
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Logging
+# Everything goes to stdout so Kubernetes collects it (kubectl logs).
+# Without this, when DEBUG is False Django only emails errors to ADMINS.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "simple": {
+            "format": "{asctime} {levelname} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "stdout": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "formatter": "simple",
+        },
+    },
+    "root": {"handlers": ["stdout"], "level": "INFO"},
+    "loggers": {
+        # Replaces Django's default handlers (console only in DEBUG, mail_admins)
+        "django": {"handlers": ["stdout"], "level": "INFO", "propagate": False},
+    },
+}

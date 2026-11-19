@@ -2,9 +2,12 @@ venv/
 */creds.txt
 backend/env.local
 *.tsv
+*.log
 
 __pycache__/
 *.pyc
+# Django collectstatic output (built inside the image)
+staticfiles/
 
 # terraform
 .terraform/

@@ -1,0 +1,66 @@
+# Aplica las migraciones de Django en el PostgreSQL externo (Azure Flexible Server).
+# Misma imagen, identidad y configuración que el backend; solo cambia el comando.
+#
+# La plantilla de pod de un Job no se puede modificar, así que en cada despliegue se borra
+# primero el Job anterior y después se aplica (ver el runbook de despliegue):
+#   kubectl delete job migrate -n gymscreen --ignore-not-found
+#   kubectl apply -k k8s/overlays/dev
+#   kubectl wait --for=condition=complete job/migrate -n gymscreen --timeout=10m
+#
+# migrate es idempotente: sin migraciones pendientes no hace nada, así que ejecutarlo
+# en cada despliegue (o tras reconstruir el clúster) es seguro.
+#
+# Limitación conocida: el Job y el Deployment del backend se aplican a la vez, así que los
+# pods nuevos del backend pueden arrancar antes de que termine la migración. Pendiente: el
+# pipeline de CI esperará a este Job antes de actualizar los Deployments.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  labels:
+    app.kubernetes.io/name: migrate
+    app.kubernetes.io/part-of: gymscreen
+spec:
+  backoffLimit: 2                 # hasta 3 intentos
+  activeDeadlineSeconds: 600      # se rinde si no termina en 10 minutos
+  ttlSecondsAfterFinished: 3600   # se borra solo 1 hora después de terminar (tiempo para leer sus logs)
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: migrate
+        app.kubernetes.io/part-of: gymscreen
+        # Necesita Key Vault (DB_PASSWORD), igual que el backend
+        azure.workload.identity/use: "true"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001   # mismo UID que el usuario de la imagen
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: gymscreen-backend   # el overlay fija el registro y la etiqueta
+          # Sustituye el CMD de la imagen (Gunicorn)
+          command: ["python", "manage.py", "migrate", "--noinput"]
+          envFrom:
+            - configMapRef:
+                name: backend-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

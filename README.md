@@ -29,26 +29,29 @@ La aplicación tiene tres capas y depende de dos servicios gestionados de Azure 
 |---|---|---|---|
 | Frontend | React 19, TypeScript, Vite 8, Tailwind CSS 4, React Router 7 | SPA que consume la API. Se compila a archivos estáticos (`npm run build` → `dist/`). | No |
 | Backend API | Python 3.13, Django 5.2, Django REST Framework 3.18 | API REST de solo lectura en `/api/v1/` y panel de administración (`/admin`) para editar el catálogo. | No. Todo el estado vive en la base de datos. |
-| Base de datos | PostgreSQL (14 en local) | Catálogo de ejercicios, usuarios del admin, sesiones y el historial de migraciones. | **Sí** |
+| Base de datos | PostgreSQL 18 (en local y en Azure Flexible Server) | Catálogo de ejercicios, usuarios del admin, sesiones y el historial de migraciones. | **Sí** |
 | Configuración | Azure Key Vault y Azure App Configuration (en local, el archivo `backend/env.local`) | Credenciales y parámetros por entorno (`ENV` = `local`, `dev` o `prod`). | Fuera de la aplicación |
 
 Las partes que más importan para el despliegue:
 
 - **Configuración centralizada y fail-fast** ([backend/gymscreen/gymscreen/config.py](backend/gymscreen/gymscreen/config.py)):
   - Al arrancar, el backend carga una sola vez toda su configuración en un diccionario de solo lectura (`CONFIG`).
-  - Los secretos (`DJANGO_SECRET_KEY`, `DB_USER`, `DB_PASSWORD`) vienen de Key Vault.
-  - Los parámetros (`ALLOWED_HOSTS`, `DB_NAME`, `DB_HOST`, `DB_PORT`, `CORS_ALLOWED_ORIGINS`) vienen de App Configuration, filtrados por la etiqueta del entorno.
+  - Los secretos (`DJANGO_SECRET_KEY`, `DB_PASSWORD`) vienen de Key Vault. Key Vault no admite guion bajo en los nombres, así que se guardan como `DJANGO-SECRET-KEY` y `DB-PASSWORD`.
+  - Los parámetros (`ALLOWED_HOSTS`, `DB_NAME`, `DB_HOST`, `DB_PORT`, `DB_USER`, `CORS_ALLOWED_ORIGINS`) vienen de App Configuration, filtrados por la etiqueta del entorno.
+  - Una variable de entorno con el nombre de un parámetro lo sustituye; por ejemplo, `ALLOWED_HOSTS` en el ConfigMap de Kubernetes. Los secretos no se pueden sustituir así.
   - Si falta un valor o un servicio no responde, el proceso termina al iniciar en lugar de fallar más tarde en una petición. Así, un contenedor mal configurado no llega a quedar listo.
 - **Autenticación hacia Azure sin credenciales en el código:**
   - El backend usa `DefaultAzureCredential`.
-  - En AKS se espera usar Workload Identity. En local se usa la sesión de Azure CLI, si hace falta.
+  - En AKS usa Workload Identity: los pods del backend y el Job de migraciones corren con la ServiceAccount `backend`, vinculada a una identidad administrada con permisos de lectura sobre Key Vault y App Configuration. En el clúster no se guarda ninguna credencial.
+  - En local se usa la sesión de Azure CLI, si hace falta.
 - **Esquema versionado:**
   - El esquema de la base lo definen los modelos de Django ([backend/gymscreen/exercises/models.py](backend/gymscreen/exercises/models.py)).
   - Se aplica con las migraciones versionadas en [backend/gymscreen/exercises/migrations/](backend/gymscreen/exercises/migrations/).
   - No se edita SQL a mano.
 - **Frontend estático:**
-  - La URL de la API se fija al compilar (`VITE_API_URL`).
-  - El resultado es un conjunto de archivos que puede servir cualquier servidor web o CDN.
+  - Se compila a archivos estáticos que sirve nginx en su contenedor.
+  - En el clúster, el frontend y la API comparten origen: el Gateway envía `/api/v1` al backend y el resto al frontend. Por eso el frontend llama a la ruta relativa `/api/v1`, no necesita CORS y la misma imagen sirve para todos los entornos.
+  - En local, `VITE_API_URL` (en `.env.local`) apunta al backend en otro puerto.
 
 ### Dependencias
 
@@ -69,12 +72,14 @@ Dependencias del backend:
 |---|---|
 | `Django` | Framework web, ORM, migraciones y admin |
 | `djangorestframework` | API REST |
-| `psycopg` | Driver de PostgreSQL |
-| `django-cors-headers` | Permite que el frontend, en otro origen, llame a la API |
+| `psycopg[binary]` | Driver de PostgreSQL; la variante `binary` incluye `libpq`, así que la imagen no necesita paquetes del sistema |
+| `django-cors-headers` | Permite que el frontend, en otro origen, llame a la API (en local; en el clúster comparten origen) |
 | `python-dotenv` | Lee `env.local` en el entorno local |
 | `azure-identity` | Autenticación con Azure (Workload Identity / CLI) |
 | `azure-keyvault-secrets` | Lectura de secretos |
 | `azure-appconfiguration` | Lectura de parámetros |
+| `gunicorn` | Servidor de aplicación en el contenedor (`runserver` es solo para desarrollo) |
+| `whitenoise` | Sirve los archivos estáticos del admin cuando `DEBUG` está desactivado |
 
 Servicios externos de los que depende la aplicación en ejecución:
 
@@ -86,13 +91,13 @@ Servicios externos de los que depende la aplicación en ejecución:
 
 | Recurso | Local | Nube (`dev` / `prod`) |
 |---|---|---|
-| Cómputo backend | Proceso `manage.py runserver` | Contenedor en AKS |
-| Frontend | Servidor de desarrollo de Vite (puerto 5173) | Archivos estáticos servidos por un contenedor o un servicio de hosting estático |
+| Cómputo backend | Proceso `manage.py runserver` | Contenedor con Gunicorn en AKS (imagen `docker/backend`) |
+| Frontend | Servidor de desarrollo de Vite (puerto 5173) | Contenedor con nginx en AKS (imagen `docker/frontend`), detrás del Gateway |
 | Base de datos | PostgreSQL en WSL | PostgreSQL gestionado (p. ej. Azure Database for PostgreSQL) |
 | Secretos | `backend/env.local` (no se sube al repositorio) | Azure Key Vault |
 | Parámetros | `backend/env.local` | Azure App Configuration, con una etiqueta por entorno |
 | Identidad | — | Identidad gestionada con acceso de lectura a Key Vault y App Configuration |
-| Red | `localhost` | Acceso del backend a PostgreSQL y a los servicios de Azure; entrada HTTP hacia frontend y API |
+| Red | `localhost` | Acceso privado del backend a PostgreSQL (VNet) y a los servicios de Azure; entrada HTTP por un Gateway (Envoy) que reparte entre frontend y API |
 
 La carga es ligera. El backend no guarda archivos en disco ni sesiones en memoria, así que puede escalar horizontalmente o reemplazarse sin perder información.
 
@@ -163,20 +168,24 @@ Los datos son de dos tipos, y cada uno se recupera de forma distinta:
 Implementado:
 
 - API de solo lectura del catálogo.
-- Panel de administración.
-- Carga de configuración por entorno con Key Vault y App Configuration.
-- CORS.
+- Panel de administración, accesible en el clúster solo mediante `kubectl port-forward`.
+- Carga de configuración por entorno con Key Vault y App Configuration, con sustitución de parámetros por variables de entorno.
+- CORS (solo necesario en local).
 - Frontend con la sección de Ejercicios completa: grupos, lista por grupo y detalle con videos.
+- Imágenes de contenedor del backend (Gunicorn, estáticos del admin con WhiteNoise) y del frontend (nginx), con usuario sin privilegios.
+- Endpoints de salud para las sondas de Kubernetes: `/healthz` (proceso vivo) y `/readyz` (base de datos accesible).
+- Logs a la salida estándar.
+- Manifiestos de Kubernetes con Kustomize (base y overlay `dev`), Gateway API con Envoy Gateway y Job de migraciones.
+- Runbook de despliegue de prueba en AKS: [k8s/docs/runbook-despliegue-prueba-aks.md](k8s/docs/runbook-despliegue-prueba-aks.md).
 
-Pendiente para llevarla a AKS:
+Pendiente:
 
-- Dockerfiles del backend y del frontend.
-- Servidor de aplicación de producción para Django (p. ej. Gunicorn). `runserver` es solo para desarrollo.
-- Servir los archivos estáticos del admin (`STATIC_ROOT` + `collectstatic`, o WhiteNoise).
-- Endpoint de salud para las sondas de Kubernetes.
-- Definir cómo se carga el catálogo inicial en `dev` y `prod`. `seed_data.sql` vacía las tablas antes de insertar, así que no debe ejecutarse sobre una base con datos.
+- Capa de entorno en Terraform (red, AKS, PostgreSQL, identidad), que hoy se crean a mano según el runbook.
+- Pipeline de CI/CD: construir y subir las imágenes, desplegar y esperar al Job de migraciones antes de actualizar el backend.
+- Dominio y HTTPS en el Gateway.
+- Carga automática del catálogo al crear `dev`, que nace sin datos operacionales pero con el catálogo. `prod` lo recibe al restaurar su respaldo. `seed_data.sql` vacía las tablas antes de insertar, así que no debe ejecutarse sobre una base cuyo catálogo se haya editado.
 - Estrategia de respaldo y restauración de PostgreSQL.
-- Inyectar `VITE_API_URL` por entorno. Hoy se fija al compilar, lo que implica una compilación del frontend por entorno.
+- Entorno de recuperación en AWS (EKS).
 
 ## Puesta en marcha local
 
@@ -190,6 +199,8 @@ Requisitos: WSL Ubuntu con PostgreSQL, pyenv (Python 3.13.12) y nvm (Node v24.21
 4. Cargar el catálogo (ver [Base de datos](#base-de-datos)).
 5. `python manage.py createsuperuser` (opcional, para `/admin`)
 6. `python manage.py runserver`
+
+Después de actualizar el repositorio, volver a ejecutar `pip install -r requirements.txt` con el entorno virtual activo: las dependencias cambian (por ejemplo, `gunicorn` y `whitenoise`).
 
 **Frontend** (`frontend/gymscreen/`):
 
@@ -244,6 +255,31 @@ Un id no numérico en `equipment` o `muscle_group` responde `400`.
 | `/rutinas`, `/entrenar`, `/historial` | Próximamente |
 
 Videos: los enlaces de YouTube (`watch`, `shorts`, `youtu.be`) y los de TikTok con formato completo (`tiktok.com/@usuario/video/<id>`) se incrustan en la página. Cualquier otro enlace se muestra como un botón "Ver video" que abre una pestaña nueva.
+
+## Contenedores y Kubernetes
+
+| Carpeta | Contenido |
+|---|---|
+| [docker/backend/](docker/backend/) | `Dockerfile` (etapas: dependencias, `collectstatic`, imagen final con Gunicorn) y `Dockerfile.dockerignore` |
+| [docker/frontend/](docker/frontend/) | `Dockerfile` (compilación con Node e imagen final con nginx sin privilegios), `nginx.conf` y `Dockerfile.dockerignore` |
+| [k8s/cluster/](k8s/cluster/) | `GatewayClass` de Envoy Gateway; se aplica una vez por clúster |
+| [k8s/base/](k8s/base/) | Namespace, backend, frontend, Gateway, HTTPRoute y Job de migraciones, comunes a todos los entornos |
+| [k8s/overlays/dev/](k8s/overlays/dev/) | Imágenes, ConfigMap del backend e identidad del entorno `dev` |
+
+Las imágenes se construyen desde la raíz del repositorio. Cada `Dockerfile.dockerignore` deja pasar solo lo necesario: `env.local`, `creds.txt` y cualquier `.env*` quedan fuera.
+
+```bash
+docker build -f docker/backend/Dockerfile  -t gymscreen-backend .
+docker build -f docker/frontend/Dockerfile -t gymscreen-frontend .
+```
+
+La imagen del backend no fija `ENV`: lo pone el overlay de cada entorno. Sin configuración real, el contenedor falla al arrancar.
+
+Para revisar los manifiestos de un entorno sin aplicarlos: `kubectl kustomize k8s/overlays/dev`.
+
+Rutas en el clúster: el Gateway envía `/api/v1` al backend y el resto al frontend. El admin no se publica; se accede con `kubectl port-forward svc/backend 8000:8000 -n gymscreen` y `http://localhost:8000/admin/`.
+
+El procedimiento completo de despliegue (red, clúster, base de datos, identidad, imágenes, carga del catálogo y destrucción) está en el [runbook de despliegue de prueba en AKS](k8s/docs/runbook-despliegue-prueba-aks.md).
 
 ## Infraestructura
 La carpeta terraform contiene la infraestructura como código necesaria para levanta la aplicación en un clúster de Kubernetes en Azure con dos ambientes (dev y prod) y una solución de recuperación en AWS. La zona DNS se encuentra en AWS Route 53.

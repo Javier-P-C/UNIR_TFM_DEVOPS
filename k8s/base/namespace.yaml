@@ -1,0 +1,11 @@
+# Namespace de todos los recursos de la aplicación. Cada entorno tiene su propio clúster
+# (AKS dev, AKS prod), así que el nombre es el mismo en todos.
+# Pod Security Admission "restricted": rechaza los pods que corren como root, escalan
+# privilegios o conservan capabilities, en línea con el securityContext de los Deployments.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gymscreen
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest

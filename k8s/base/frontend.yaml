@@ -1,0 +1,91 @@
+# Frontend: SPA de React (docker/frontend/Dockerfile) servida por nginx en el puerto 8080.
+# Llama a la API en el mismo origen (/api/v1/), que el Gateway envía al backend.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: gymscreen
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0   # un pod nuevo debe estar listo antes de retirar uno viejo
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: frontend
+        app.kubernetes.io/part-of: gymscreen
+    spec:
+      # Solo archivos estáticos: no necesita hablar con la API de Kubernetes
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101   # usuario de la imagen nginx-unprivileged
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: frontend
+          image: gymscreen-frontend   # el overlay fija el registro y la etiqueta
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 15
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi   # sin límite de CPU: evita el estrangulamiento; las requests reservan su parte
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # nginx-unprivileged escribe su PID y sus archivos temporales en /tmp;
+        # el resto del sistema de archivos es de solo lectura
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: gymscreen
+spec:
+  type: ClusterIP   # solo interno: el Gateway envía / aquí
+  selector:
+    app.kubernetes.io/name: frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

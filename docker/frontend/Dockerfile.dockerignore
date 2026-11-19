@@ -1,0 +1,15 @@
+# Lo usa solo docker/frontend/Dockerfile (BuildKit busca <Dockerfile>.dockerignore).
+# El contexto de construcción es la raíz del repositorio, así que las rutas son relativas a ella.
+#
+# Lista blanca: se excluye todo salvo lo que necesita la imagen.
+*
+!frontend/gymscreen/
+!docker/frontend/nginx.conf
+
+# Se instalan o generan dentro de la imagen
+frontend/gymscreen/node_modules
+frontend/gymscreen/dist
+
+# Ningún archivo .env* puede entrar al build: con VITE_API_URL sin definir, la aplicación
+# llama a /api/v1 en el mismo origen, así la misma imagen sirve en todos los entornos.
+frontend/gymscreen/.env*

@@ -1,0 +1,23 @@
+# Punto de entrada público de la aplicación. Envoy Gateway (GatewayClass "envoy",
+# k8s/cluster/gatewayclass.yaml) crea para él un proxy Envoy y un Service LoadBalancer
+# con IP pública. IP pública:
+#   kubectl get gateway gymscreen -n gymscreen
+#
+# Configuración de prueba: solo HTTP y sin hostname, así que responde en la IP pública.
+# Pendiente hasta que exista un dominio: hostname en el listener y HTTPS (puerto 443
+# con un certificado).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: gymscreen
+  labels:
+    app.kubernetes.io/part-of: gymscreen
+spec:
+  gatewayClassName: envoy
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same   # solo se pueden enganchar rutas del namespace gymscreen

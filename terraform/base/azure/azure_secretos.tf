@@ -3,14 +3,16 @@
 #
 # Contenido:
 #   Key Vault (uno por entorno)   DJANGO-SECRET-KEY y DB-PASSWORD (los nombres de secretos de Key Vault no admiten guion bajo)
-#   App Configuration (uno solo)  DB_USER, DB_NAME y DB_PORT sin etiqueta (comunes);
-#                                 ALLOWED_HOSTS y CORS_ALLOWED_ORIGINS con la etiqueta del entorno (dev o prod)
+#   App Configuration (uno solo)  DB_USER, DB_NAME, DB_PORT, ALLOWED_HOSTS y CORS_ALLOWED_ORIGINS,
+#                                 todas con la etiqueta del entorno (dev o prod)
 #
 # DB_HOST no se escribe aquí: depende del servidor PostgreSQL, que vive en la capa de entorno
 # y se destruye con ella. La capa de entorno escribe DB_HOST en App Configuration, con la etiqueta de su entorno,
 # al crear el servidor.
 #
-# El backend carga primero las claves sin etiqueta y después las de su entorno, que prevalecen sobre las anteriores.
+# El backend lee solo las claves con la etiqueta de su entorno (ENV=dev o prod).
+# Una variable de entorno del pod con el mismo nombre que una clave la sustituye
+# (por ejemplo ALLOWED_HOSTS en el ConfigMap del overlay); los secretos no se sustituyen.
 
 data "azurerm_client_config" "actual" {}
 

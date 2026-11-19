@@ -105,6 +105,8 @@ revisar "azure ip publica" az network public-ip list --query "[].name" -o tsv
 revisar "azure nat" az network nat gateway list --query "[].name" -o tsv
 revisar "azure vnet" az network vnet list --query "[].name" -o tsv
 revisar "azure disco" az resource list --resource-type Microsoft.Compute/disks --query "[].name" -o tsv
+revisar "azure maquina virtual" az resource list --resource-type Microsoft.Compute/virtualMachines --query "[].name" -o tsv
+revisar "azure conjunto de escalado" az resource list --resource-type Microsoft.Compute/virtualMachineScaleSets --query "[].name" -o tsv
 revisar "aws eks" aws_lista eks list-clusters --query "clusters[]"
 revisar "aws rds" aws_lista rds describe-db-instances --query "DBInstances[].DBInstanceIdentifier"
 revisar "aws nat" aws_lista ec2 describe-nat-gateways --filter "Name=state,Values=pending,available" --query "NatGateways[].NatGatewayId"

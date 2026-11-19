@@ -5,7 +5,9 @@
 --
 -- Solo datos. Las tablas las crea Django: `python manage.py migrate`.
 -- Correr este script BORRA y vuelve a cargar el catálogo de ejercicios.
--- Usar solo en local; nunca en dev o prod.
+-- Usar en local y en dev, solo sobre una base recién creada o cuyo catálogo
+-- no se haya editado desde el admin. Nunca en prod: recibe el catálogo al
+-- restaurar su respaldo.
 -- =====================================================================
 
 BEGIN;

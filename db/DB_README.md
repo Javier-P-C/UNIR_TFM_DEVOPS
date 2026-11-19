@@ -49,6 +49,6 @@ Desde la raíz del repositorio:
 psql -h localhost -U username -d database_name -f db/seed_data.sql
 ```
 
-El script vacía y vuelve a cargar el catálogo, así que se puede repetir. Usarlo solo en local, nunca en dev o prod.
+El script vacía y vuelve a cargar el catálogo, así que se puede repetir. Usarlo en local y en dev, solo sobre una base recién creada o cuyo catálogo no se haya editado desde el admin. Nunca en prod: recibe el catálogo al restaurar su respaldo.
 
 > **Nota:** `seed_data.sql` usa nombres de tabla fijos (`exercise`, `muscle_group`, `exercise_musclegroup`, ...). Los modelos de Django deben definir `db_table` con esos nombres; si no, el script falla con `relation "..." does not exist`.

@@ -1,0 +1,36 @@
+# Enrutamiento del Gateway público: el frontend y la API comparten origen,
+# así que el frontend llama a /api/v1 sin CORS.
+#
+# Gana el prefijo coincidente más largo, sin importar el orden de las reglas, así que
+# /api/v1 tiene prioridad sobre /. PathPrefix compara segmentos completos de la ruta:
+# /api/v1 incluye /api/v1/exercises/... pero no /api/v1xyz.
+#
+# /admin no tiene ruta a propósito: desde fuera cae en el frontend.
+# Al admin solo se llega con kubectl port-forward al backend.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: gymscreen
+  labels:
+    app.kubernetes.io/part-of: gymscreen
+spec:
+  parentRefs:
+    - name: gymscreen
+      sectionName: http
+  rules:
+    # API -> backend
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v1
+      backendRefs:
+        - name: backend
+          port: 8000
+    # Todo lo demás -> frontend (SPA)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: frontend
+          port: 8080

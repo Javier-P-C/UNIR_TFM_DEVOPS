@@ -1,0 +1,52 @@
+# Entorno dev (AKS dev).
+#   Generar:  kubectl kustomize k8s/overlays/dev
+#   Aplicar:  kubectl apply -k k8s/overlays/dev
+#
+# Sustituir todos los <...> antes de aplicar. Ninguno de estos valores es secreto:
+# sin los permisos de la identidad administrada no dan acceso. Son valores de la sesión,
+# así que no se confirman en el repositorio.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# También hace falta aquí: el namespace de la base solo se aplica a los recursos de la base,
+# y el ConfigMap de abajo se genera en este overlay
+namespace: gymscreen
+
+resources:
+  - ../../base
+
+# Imágenes subidas al ACR, etiquetadas con el commit del que salen (nunca "latest")
+#   <acr_servidor>: terraform output acr_servidor (terraform/base/azure)
+images:
+  - name: gymscreen-backend
+    newName: "<acr_servidor>/gymscreen-backend"
+    newTag: "<sha-del-commit>"
+  - name: gymscreen-frontend
+    newName: "<acr_servidor>/gymscreen-frontend"
+    newTag: "<sha-del-commit>"
+
+# Configuración del backend. El nombre lleva un sufijo hash del contenido, así que cambiar
+# cualquier valor crea un ConfigMap nuevo y reinicia los pods del backend automáticamente.
+configMapGenerator:
+  - name: backend-config
+    literals:
+      - ENV=dev
+      # terraform output key_vault -> dev.uri
+      - KEY_VAULT_URL=<key_vault_dev_uri>
+      # terraform output app_configuration -> endpoint
+      - APP_CONFIG_ENDPOINT=<app_configuration_endpoint>
+      # Sustituye el valor de App Configuration (config.py, _apply_overrides).
+      # localhost: admin por kubectl port-forward. Añadir la IP del Gateway después de desplegarlo.
+      - ALLOWED_HOSTS=localhost
+
+patches:
+  # Identidad administrada que usan los pods del backend (Workload Identity).
+  # <client-id>: se crea a mano en esta prueba (ver el runbook de despliegue):
+  #   az identity show -g <grupo> -n <identidad> --query clientId -o tsv
+  - patch: |-
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: backend
+        annotations:
+          azure.workload.identity/client-id: "<client-id>"
