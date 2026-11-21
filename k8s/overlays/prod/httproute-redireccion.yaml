@@ -1,0 +1,28 @@
+# Redirección de HTTP a HTTPS en el listener del puerto 80.
+#
+# El puerto 80 sigue abierto porque Let's Encrypt valida el desafío HTTP-01 por HTTP.
+# cert-manager crea su propia HTTPRoute temporal en este listener con una coincidencia Exact
+# (/.well-known/acme-challenge/<token>), que tiene prioridad sobre el PathPrefix "/" de esta
+# regla. Así el desafío se responde y todo lo demás se redirige.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: gymscreen-redireccion
+  labels:
+    app.kubernetes.io/part-of: gymscreen
+spec:
+  parentRefs:
+    - name: gymscreen
+      sectionName: http
+  hostnames:
+    - "<host-prod>"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

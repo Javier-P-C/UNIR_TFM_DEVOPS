@@ -51,10 +51,11 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "respaldos" {
 resource "aws_s3_bucket_lifecycle_configuration" "respaldos" {
   bucket = aws_s3_bucket.respaldos.id
   rule {
-    id     = "expirar-respaldos"
+    id     = "expirar-versiones-anteriores"
     status = "Enabled"
     filter {}
-    expiration { days = var.dias_retencion_respaldos }
+    # La versión actual de cada objeto no expira. Al sobrescribir una clave, la versión
+    # anterior pasa a no actual y se borra a los dias_retencion_respaldos días.
     noncurrent_version_expiration { noncurrent_days = var.dias_retencion_respaldos }
   }
 }

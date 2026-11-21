@@ -1,0 +1,99 @@
+# Entorno prod (AKS prod), con dominio y HTTPS.
+#   Generar:  kubectl kustomize k8s/overlays/prod
+#   Aplicar:  kubectl apply -k k8s/overlays/prod
+#
+# Sustituir todos los <...> antes de aplicar (runbook k8s/docs/runbook-linea-base-produccion.md).
+# Ninguno es secreto, pero son valores de la sesión o del dominio, así que no se confirman
+# en el repositorio.
+#
+# Diferencias con dev:
+#   - ALLOWED_HOSTS y DB_HOST no se sustituyen: vienen de App Configuration con la etiqueta prod.
+#     ALLOWED_HOSTS ya incluye localhost para el admin (terraform/base/azure/azure_secretos.tf).
+#   - El Gateway tiene nombre de host, un listener HTTPS en el 443 con el certificado que emite
+#     cert-manager, y el 80 solo sirve el desafío HTTP-01 y redirige a HTTPS.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# También hace falta aquí: el ConfigMap de abajo se genera en este overlay
+namespace: gymscreen
+
+resources:
+  - ../../base
+  - httproute-redireccion.yaml
+
+# Imágenes del ACR, etiquetadas con el commit del que salen (nunca "latest")
+images:
+  - name: gymscreen-backend
+    newName: "<acr_servidor>/gymscreen-backend"
+    newTag: "<sha-del-commit>"
+  - name: gymscreen-frontend
+    newName: "<acr_servidor>/gymscreen-frontend"
+    newTag: "<sha-del-commit>"
+
+# Solo lo que el backend necesita para llegar a los almacenes; el resto de la configuración
+# se lee de ellos con la etiqueta prod
+configMapGenerator:
+  - name: backend-config
+    literals:
+      - ENV=prod
+      # terraform output key_vault -> prod.uri
+      - KEY_VAULT_URL=<key_vault_prod_uri>
+      # terraform output app_configuration -> endpoint
+      - APP_CONFIG_ENDPOINT=<app_configuration_endpoint>
+
+patches:
+  # Identidad administrada que usan los pods del backend (Workload Identity)
+  - patch: |-
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: backend
+        annotations:
+          azure.workload.identity/client-id: "<client-id>"
+
+  # Gateway con dominio y HTTPS. El listener https usa el Secret gymscreen-tls, que crea
+  # cert-manager a partir de certificado.yaml (se aplica aparte, después del registro DNS).
+  # Hasta entonces el listener https no está listo; el http sí.
+  # Se usa un patch JSON porque en recursos CRD una fusión estratégica no combina listas por
+  # nombre: se sustituye la lista de listeners completa.
+  - target:
+      group: gateway.networking.k8s.io
+      kind: Gateway
+      name: gymscreen
+    patch: |-
+      - op: replace
+        path: /spec/listeners
+        value:
+          - name: http
+            protocol: HTTP
+            port: 80
+            hostname: "<host-prod>"
+            allowedRoutes:
+              namespaces:
+                from: Same
+          - name: https
+            protocol: HTTPS
+            port: 443
+            hostname: "<host-prod>"
+            tls:
+              mode: Terminate
+              certificateRefs:
+                - kind: Secret
+                  name: gymscreen-tls
+            allowedRoutes:
+              namespaces:
+                from: Same
+
+  # La aplicación se sirve solo por HTTPS y solo para el nombre de host público
+  - target:
+      group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: gymscreen
+    patch: |-
+      - op: replace
+        path: /spec/parentRefs/0/sectionName
+        value: https
+      - op: add
+        path: /spec/hostnames
+        value:
+          - "<host-prod>"

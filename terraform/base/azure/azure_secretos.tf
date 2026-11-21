@@ -24,7 +24,9 @@ locals {
         DB_USER              = var.db_usuario
         DB_NAME              = var.db_nombre
         DB_PORT              = tostring(var.db_puerto)
-        ALLOWED_HOSTS        = host
+        # localhost: admin por kubectl port-forward. Desde fuera no llega con ese Host,
+        # porque el listener del Gateway solo acepta el nombre de host público.
+        ALLOWED_HOSTS        = "${host},localhost"
         CORS_ALLOWED_ORIGINS = "https://${host}"
       } : "${e}/${k}" => { etiqueta = e, clave = k, valor = v }
     }

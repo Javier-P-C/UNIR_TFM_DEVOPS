@@ -3,9 +3,9 @@
 # con IP pública. IP pública:
 #   kubectl get gateway gymscreen -n gymscreen
 #
-# Configuración de prueba: solo HTTP y sin hostname, así que responde en la IP pública.
-# Pendiente hasta que exista un dominio: hostname en el listener y HTTPS (puerto 443
-# con un certificado).
+# Base: solo HTTP y sin hostname, así que responde en la IP pública (así lo usa dev).
+# El overlay de prod sustituye los listeners: nombre de host, HTTPS en el 443 con el
+# certificado de cert-manager, y el 80 solo para el desafío HTTP-01 y la redirección.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:

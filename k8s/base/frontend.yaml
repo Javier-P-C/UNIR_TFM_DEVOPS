@@ -7,6 +7,8 @@ metadata:
   labels:
     app.kubernetes.io/name: frontend
     app.kubernetes.io/part-of: gymscreen
+    # Ver backend.yaml: separa los Deployments del resto para esperar al Job de migraciones
+    app.kubernetes.io/component: servidor
 spec:
   replicas: 2
   selector:

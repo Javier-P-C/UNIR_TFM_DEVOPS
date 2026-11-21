@@ -429,11 +429,12 @@ El admin de Django no se publica en el Gateway: desde fuera, `/admin/` llega al 
 7. Anotar en la hoja de registro el tiempo de destrucción y lo que haya quedado pendiente.
 
 ## Pendientes
-- **Dominio y HTTPS:** `hostname` en el listener del Gateway, certificado y puerto 443. Con el host real en `host_por_entorno`, `ALLOWED_HOSTS` vuelve a venir de App Configuration y el overlay solo conserva `localhost` para el admin.
 - **Capa de entorno en Terraform:** sustituye los pasos 2 a 5 y escribe `DB_HOST` en App Configuration.
-- **Pipeline de CI:** construir y subir las imágenes en cada commit, rellenar el overlay en el espacio de trabajo del pipeline y esperar al Job de migraciones antes de actualizar los Deployments (hoy se aplican a la vez).
+- **Pipeline de CI:** construir y subir las imágenes en cada commit y rellenar el overlay en el espacio de trabajo del pipeline. Para esperar al Job de migraciones antes de actualizar los Deployments, los Deployments llevan la etiqueta `app.kubernetes.io/component: servidor` (ver el paso 9 de `runbook-linea-base-produccion.md`); este runbook todavía aplica todo a la vez.
 - **Carga automática del catálogo al crear `dev`** (sin pasos manuales). `prod` lo recibe al restaurar su respaldo.
-- **Respaldo y restauración de PostgreSQL**, y entorno de recuperación en AWS.
+- **Estrategia de respaldos periódicos de PostgreSQL** y entorno de recuperación en AWS. El respaldo y la restauración manuales de `prod` están en `runbook-linea-base-produccion.md`.
+
+Dominio y HTTPS ya no son un pendiente: los tiene el entorno `prod` (`k8s/overlays/prod`, `k8s/cluster/clusterissuer-letsencrypt.yaml` y `runbook-linea-base-produccion.md`). Este runbook de `dev` sigue sirviendo por la IP del Gateway y solo por HTTP.
 
 ## Notas de seguridad
 - No se guardan secretos en el repositorio. Los valores del overlay (ACR, URL de Key Vault, endpoint de App Configuration, client-id) no son secretos: sin los permisos de la identidad no dan acceso. Aun así no se confirman, porque cambian en cada sesión.

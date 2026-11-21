@@ -1,0 +1,26 @@
+# Certificado TLS del nombre de host público. cert-manager lo emite con el ClusterIssuer
+# indicado y lo guarda en el Secret gymscreen-tls, que usa el listener https del Gateway.
+#
+# No forma parte de kustomization.yaml a propósito: se aplica en su propio paso, solo cuando
+# el registro A ya resuelve a la IP del Gateway. Si se creara junto con el Gateway, cert-manager
+# empezaría el desafío HTTP-01 antes de que exista el registro, y una respuesta negativa en la
+# caché de DNS retrasaría la emisión un tiempo impredecible.
+#   kubectl apply -f k8s/overlays/prod/certificado.yaml
+#
+# <emisor>: letsencrypt-staging (depuración) o letsencrypt-prod (repeticiones medidas),
+#           k8s/cluster/clusterissuer-letsencrypt.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gymscreen-tls
+  namespace: gymscreen
+  labels:
+    app.kubernetes.io/part-of: gymscreen
+spec:
+  secretName: gymscreen-tls
+  dnsNames:
+    - "<host-prod>"
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: "<emisor>"
