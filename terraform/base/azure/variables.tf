@@ -8,8 +8,8 @@ variable "ubicacion" {
   default = "eastus2"
 }
 
-variable "suscripcion_id" { 
-  type = string 
+variable "suscripcion_id" {
+  type = string
 }
 
 variable "github_repo" {

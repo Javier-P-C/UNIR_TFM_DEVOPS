@@ -21,9 +21,9 @@ locals {
   config_entorno = merge([
     for e, host in var.host_por_entorno : {
       for k, v in {
-        DB_USER              = var.db_usuario
-        DB_NAME              = var.db_nombre
-        DB_PORT              = tostring(var.db_puerto)
+        DB_USER = var.db_usuario
+        DB_NAME = var.db_nombre
+        DB_PORT = tostring(var.db_puerto)
         # localhost: admin por kubectl port-forward. Desde fuera no llega con ese Host,
         # porque el listener del Gateway solo acepta el nombre de host público.
         ALLOWED_HOSTS        = "${host},localhost"
