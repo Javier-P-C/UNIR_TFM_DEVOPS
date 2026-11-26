@@ -15,5 +15,8 @@ staticfiles/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+# Valores de cada entorno, sin secretos (los de la sesión y la cuenta van con TF_VAR_*)
+!terraform/entorno/*/*/*/dev.tfvars
+!terraform/entorno/*/*/*/prod.tfvars
 crash.log
 *.tfplan

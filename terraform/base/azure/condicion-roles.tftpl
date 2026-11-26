@@ -1,0 +1,19 @@
+(
+ (
+  !(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})
+ )
+ OR
+ (
+  @Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {${roles}}
+ )
+)
+AND
+(
+ (
+  !(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})
+ )
+ OR
+ (
+  @Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {${roles}}
+ )
+)

@@ -1,10 +1,10 @@
 provider "azurerm" {
   features {
-     key_vault {
-       purge_soft_delete_on_destroy    = true
-       recover_soft_deleted_key_vaults = true
-     }
-   }
+    key_vault {
+      purge_soft_delete_on_destroy    = true
+      recover_soft_deleted_key_vaults = true
+    }
+  }
   subscription_id     = var.suscripcion_id
   storage_use_azuread = true
 }
@@ -74,11 +74,32 @@ resource "azurerm_role_assignment" "contributor" {
   role_definition_name = "Contributor"
   principal_id         = azuread_service_principal.github.object_id
 }
-# Necesario para asignar roles dentro de los entornos (por ejemplo, AKS con acceso a ACR).
+# Roles que asigna la capa de entorno (terraform/entorno/azure). Si esa capa asigna uno nuevo,
+# hay que añadirlo aquí y aplicar la capa base antes; si no, su apply falla con 403.
+locals {
+  roles_asignables_entorno = [
+    "AcrPull",                       # kubelet del clúster sobre el ACR
+    "Network Contributor",           # identidad del clúster sobre su subred
+    "Key Vault Secrets User",        # identidad del backend sobre el Key Vault del entorno
+    "App Configuration Data Reader", # identidad del backend sobre App Configuration
+  ]
+}
+data "azurerm_role_definition" "asignable_entorno" {
+  for_each = toset(local.roles_asignables_entorno)
+  name     = each.key
+  scope    = data.azurerm_subscription.actual.id
+}
+
+# Asignar roles dentro de los entornos, restringido por condición a los roles anteriores:
+# solo puede crear y borrar asignaciones de esos roles.
 resource "azurerm_role_assignment" "acceso_roles" {
   scope                = data.azurerm_subscription.actual.id
   role_definition_name = "Role Based Access Control Administrator"
   principal_id         = azuread_service_principal.github.object_id
+  condition_version    = "2.0"
+  condition = trimspace(templatefile("${path.module}/condicion-roles.tftpl", {
+    roles = join(", ", sort([for r in data.azurerm_role_definition.asignable_entorno : r.role_definition_id]))
+  }))
 }
 # Acceso al estado remoto con Azure AD (sin claves de la cuenta).
 data "azurerm_storage_account" "estado" {

@@ -1,0 +1,5 @@
+resource_group_name  = "rg-tfm-unir-estado"
+storage_account_name = "REEMPLAZAR"
+container_name       = "tfstate"
+key                  = "entorno-prod-infraestructura.tfstate"
+use_azuread_auth     = true
